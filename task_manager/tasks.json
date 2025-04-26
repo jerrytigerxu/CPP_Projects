@@ -1,0 +1,16 @@
+[
+ {
+   "id": 1,
+   "description": "Finish this project",
+   "status": "todo",
+   "createdAt": "2025-04-26 10:50:50",
+   "updatedAt": "2025-04-26 10:50:50"
+ },
+ {
+   "id": 2,
+   "description": "Spend time with Camelia",
+   "status": "todo",
+   "createdAt": "2025-04-26 09:51:09",
+   "updatedAt": "2025-04-26 09:51:09"
+ }
+]
