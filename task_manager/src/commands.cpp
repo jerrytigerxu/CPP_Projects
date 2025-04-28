@@ -57,7 +57,6 @@ bool updateTask(std::vector<Task>& tasks, int id, const std::string& newDescript
  * \@return True if the task was found and deleted, false otherwise 
  */
 bool deleteTask(std::vector<Task>& tasks, int id) {
-    auto original_size = tasks.size(); 
     //remove_if moves the elements to be removed to the end and returns an iterator to the start of the removed range
     auto new_end = std::remove_if(tasks.begin(), tasks.end(),
                                   [id](const Task& task) { return task.id == id; });

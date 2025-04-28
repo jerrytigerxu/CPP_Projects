@@ -44,6 +44,13 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
             std::string description = argv[2];
+
+            // Check if the description contains at least one non-whitespace character
+            // std::string::npos is returned if no character matches the condition
+            if (description.find_first_not_of(" \t\n\r\f\v") == std::string::npos) {
+                std::cerr << "Error: Task description cannot be empty or whitespace only." << std::endl;
+                return 1;
+            }
             addTask(tasks, description);
             tasksModified = true;
         } else if (command == "update") {
@@ -55,6 +62,12 @@ int main(int argc, char* argv[]) {
             // Convert ID argument from string to integer
             int id = std::stoi(argv[2]);
             std::string newDescription = argv[3];
+            // Check if the description contains at least one non-whitespace character
+            // std::string::npos is returned if no character matches the condition
+            if (newDescription.find_first_not_of(" \t\n\r\f\v") == std::string::npos) {
+                std::cerr << "Error: New task description cannot be empty or whitespace only." << std::endl;
+                return 1;
+            }
             if (updateTask(tasks, id, newDescription)) {
                 tasksModified = true;
             }
