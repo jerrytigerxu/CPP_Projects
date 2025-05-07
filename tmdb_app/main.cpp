@@ -8,6 +8,7 @@
 #include <set> // For storing valid movie types 
 #include <curl/curl.h> // For making HTTP requests with libcurl
 #include "nlohmann/json.hpp" // For parsing JSON 
+#include <iomanip> // For formatting output
 
 // Use the nlohmann::json namespace 
 using json = nlohmann::json;
@@ -32,14 +33,22 @@ std::string parseArguments(int argc, char* argv[]);
 static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp); 
 
 // Fetches movie data from the TMDB API for a given type
-std::string fetchData(const std::string& apiKey, const std::string& movieType);
+void fetchData(const std::string& apiKey, const std::string& movieType, std::string& responseBuffer);
 
 // Parses the JSON response from the TMDB API and returns a vector of Movie structs 
 std::vector<Movie> parseJson(const std::string& jsonResponse);
 
-// void displayMoviesTable(const std::vector<Movie>& movies);
+// Displays the movie data in a basic, unformatted way
+void displayMoviesTable(const std::vector<Movie>& movies);
 
 int main(int argc, char* argv[]) {
+    // --- Initialize libcurl globall ---
+    CURLcode global_init_res = curl_global_init(CURL_GLOBAL_DEFAULT);
+    if (global_init_res != CURLE_OK) {
+        std::cerr << "Failed to initialize libcurl globall: " << curl_easy_strerror(global_init_res) << std::endl;
+        return 1;
+    }
+
     // --- 1. Get API Key ---
     std::string apiKey;
     try {
@@ -73,28 +82,56 @@ int main(int argc, char* argv[]) {
     try {
         std::cout << "\nFetching movie data from TMDB for type: " << movieType << "..." << std::endl;
         // Call fetchData with the retrieved API key and movie type 
-        std::string jsonResponse = fetchData(apiKey, movieType);
+        fetchData(apiKey, movieType, jsonResponse);
 
+        /*
         // Print the raw JSON response to verify 
         std::cout << "\n--- Raw JSON Response---" << std::endl;
         std::cout << jsonResponse << std::endl;
         std::cout << "--- End of Response ---" << std::endl;
+
+        // --- (NEW) Debug check immediately after first print block ---
+        std::cout << "DEBUG: In main, jsonResponse.length() AFTER first print block: " << jsonResponse.length() << std::endl;
+        if(jsonResponse.empty()){
+            std::cerr << "CRITICAL DEBUG: jsonResponse in main IS EMPTY AFTER first print block!" << std::endl;
+        }
+        // --- End of new debug check ---
+        */
+
+        if (jsonResponse.empty()) { // This check might now catch the issue if corruption happens during the prints above
+            std::cerr << "Error: Fetched data is empty in main (checked after initial prints). Cannot parse." << std::endl;
+            curl_global_cleanup();
+            return 1;
+        }
     } catch (const std::runtime_error& e) {
         // Catch errors specifically from the fetchData process
         std::cerr << "\nFetch Error: " << e.what() << std::endl;
+        curl_global_cleanup();
         return 1;
     } catch (const std::exception& e) {
         // Catch any other unexpected errors during fetch 
         std::cerr << "\nUnexpected Error: " << e.what() << std::endl;
+        curl_global_cleanup();
         return 1; 
     }
+
     
 
     // --- 4. Parse JSON Response ---
     std::vector<Movie> movies; // Declare vector to store parsed movies 
     try {
         std::cout << "\nParsing JSON response..." << std::endl;
-        movies = parseJson(jsonResponse); // Call the parseJson function
+
+        /*
+        // Debug check for both original and copy
+        std::cout << "DEBUG: In main, jsonResponse.length() just before parseJson call: " << jsonResponse.length() << std::endl;
+        if(jsonResponse.empty()){
+            std::cerr << "CRITICAL DEBUG: ORIGINAL jsonResponse in main IS EMPTY just before parseJson call!" << std::endl;
+        }
+        */
+        
+        // Pass the copy to parseJson
+        movies = parseJson(jsonResponse); 
         std::cout << "Successfully parsed " << movies.size() << " movies." << std::endl;
     } catch (const json::parse_error& e) {
         std::cerr << "\nJSON Parse Error: " << e.what() << std::endl;
@@ -109,7 +146,10 @@ int main(int argc, char* argv[]) {
 
     // --- 5. Display Data (Placeholder) ---
     std::cout << "\nDisplaying movie data..." << std::endl;
-    // TODO: Implement display logic, likely using a formatted table
+    displayMoviesTable(movies); // Call the new display function
+
+    // --- Global Cleanup ---
+    curl_global_cleanup(); // Cleanup libcurl global state before exiting
 
     return 0;
 }
@@ -235,14 +275,14 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
     // Calculate the total size of the data chunk received 
     size_t realSize = size * nmemb; 
     // Cast userp pointer back to a std::string pointer 
-    std::string* readBuffer = static_cast<std::string*>(userp);
-    if (readBuffer == nullptr) {
+    std::string* responseBuffer = static_cast<std::string*>(userp);
+    if (responseBuffer == nullptr) {
         return 0;
     }
     try {
         // Append the received data chunk to the string 
         // contents is not null-terminated, so specify length explicitly 
-        readBuffer->append(static_cast<char*>(contents), realSize);
+        responseBuffer->append(static_cast<char*>(contents), realSize);
     } catch (const std::bad_alloc& e) {
         // Handle potential memory allocation errors during append 
         std::cerr << "Memory allocation error in WriteCallback: " << e.what() << std::endl;
@@ -259,10 +299,10 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
  * \@return The raw JSON response as a string 
  * \@throws std::runtime_error on libcurl errors or non-200 HTTP status codes
  */
-std::string fetchData(const std::string& apiKey, const std::string& movieType) {
+void fetchData(const std::string& apiKey, const std::string& movieType, std::string& responseBuffer) {
     CURL *curl = nullptr; // libcurl handle
     CURLcode res; // Result code from libcurl operations 
-    std::string readBuffer; // String to store the API response 
+    // std::string readBuffer; // String to store the API response 
     long http_code = 0; // To store the HTTP status code from the response 
     struct curl_slist *headers = nullptr; // List of custom HTTP headers 
 
@@ -287,6 +327,7 @@ std::string fetchData(const std::string& apiKey, const std::string& movieType) {
     }
 
     try {
+        responseBuffer.clear();
         // --- Set libcurl Options ---
 
         // 1. Set the URL to fetch 
@@ -295,8 +336,8 @@ std::string fetchData(const std::string& apiKey, const std::string& movieType) {
         // 2. Set the callback function to process received data
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback); 
 
-        // 3. Pass the readBuffer string to the callback function
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+        // 3. Pass the responseBuffer string to the callback function
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseBuffer);
 
         // 4. Set up accept header 
         struct curl_slist *headers = nullptr;
@@ -332,16 +373,17 @@ std::string fetchData(const std::string& apiKey, const std::string& movieType) {
         if (http_code != 200) {
             // If status code is not 200 OK, throw an error
             std::string errorMsg = "HTTP request failed with status code: " + std::to_string(http_code);
-            if (!readBuffer.empty()) {
-                errorMsg += "\nResponse snipper: " + readBuffer.substr(0, 200) + (readBuffer.length() > 200 ? "..." : "");
+            if (!responseBuffer.empty()) {
+                errorMsg += "\nResponse snipper: " + responseBuffer.substr(0, 200) + (responseBuffer.length() > 200 ? "..." : "");
             }
+            if (headers) curl_slist_free_all(headers);
+            curl_easy_cleanup(curl);
             throw std::runtime_error(errorMsg);
         }
 
         // --- Cleanup ---
-        curl_easy_cleanup(curl); // Clean up the easy handle
-        curl_slist_free_all(headers); // Free the list of headers
-        curl_global_cleanup(); // Clean up global libcurl state 
+        if (headers) curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
     } catch (...) {
         // --- Exception-safe cleanup ---
         // Ensure cleanup happens even if an exception occurred within the try block
@@ -351,8 +393,6 @@ std::string fetchData(const std::string& apiKey, const std::string& movieType) {
         throw; // Re-throw the caught exception
     }
 
-    // If everything succeeded, return the accumulated response data
-    return readBuffer; 
 
 }
 
@@ -364,7 +404,21 @@ std::string fetchData(const std::string& apiKey, const std::string& movieType) {
  * if essential movie fields are missing or have incorrect types
  */
 std::vector<Movie> parseJson(const std::string& jsonResponse) {
-    std::vector<Movie> movies; 
+    std::vector<Movie> movies;
+    
+    /*
+    std::cout << "DEBUG: parseJson received string of length: " << jsonResponse.length() << std::endl;
+    if (jsonResponse.empty()) {
+        std::cerr << "DEBUG: parseJson confirms it received an EMPTY string!" << std::endl;
+        // No need to throw here, json::parse will do it, or we can throw a custom one.
+        // For now, let nlohmann::json::parse handle the empty string error.
+    } else if (jsonResponse.length() < 200) { // Print snippet if not too long
+         std::cout << "DEBUG: parseJson received content snippet: [" << jsonResponse << "]" << std::endl;
+    } else {
+         std::cout << "DEBUG: parseJson received content snippet (first 200 chars): [" << jsonResponse.substr(0, 200) << "...]" << std::endl;
+    }
+    */
+
     try {
         json data = json::parse(jsonResponse); 
 
@@ -402,4 +456,52 @@ std::vector<Movie> parseJson(const std::string& jsonResponse) {
     }
 
     return movies; // Return the vector of parsed movies
+}
+
+
+/**
+ * \@brief Displays the movie data in a basic, unformatted way.
+ * Iterates through the vector of Movie objects and prints their details.
+ * \@param movies A constant reference to a vector of Movie objects
+ */
+void displayMoviesTable(const std::vector<Movie>& movies) {
+    if (movies.empty()) {
+        std::cout << "No movies found for this category or an error occurred." << std::endl;
+        return;
+    }
+
+    // Define column widths
+    const int idWidth = 10;
+    const int titleWidth = 40;
+    const int dateWidth = 15;
+    const int ratingWidth = 8;
+
+    // Print table header
+    std::cout << std::left << std::setw(idWidth) << "ID"
+              << std::setw(titleWidth) << "Title"
+              << std::setw(dateWidth) << "Release Date"
+              << std::setw(ratingWidth) << "Rating"
+              << std::endl;
+
+    // Separator line
+    std::cout << std::string(idWidth + titleWidth + dateWidth + ratingWidth, '-') << std::endl;
+
+    // Print movie data
+    for (const auto& movie : movies) {
+        std::cout << std::left << std::setw(idWidth) << movie.id
+                  << std::setw(titleWidth) << (movie.title.length() > titleWidth - 3 ? movie.title.substr(0, titleWidth - 3) + "..." : movie.title)
+                  << std::setw(dateWidth) << movie.release_date
+                  << std::fixed << std::setprecision(1) << std::setw(ratingWidth) << movie.vote_average
+                  << std::endl;
+
+        // Print overview on a new line
+        // Truncate overview if it's very long to avoid cluttering
+        std::string overview_display = movie.overview;
+        if (overview_display.length() > 120) {
+            overview_display = overview_display.substr(0, 117) + "...";
+        }
+        std::cout << std::string(2, ' ') << "Overview: " << overview_display << std::endl;
+        std::cout << std::string(idWidth + titleWidth + dateWidth + ratingWidth, '-') << std::endl;
+    }
+
 }
