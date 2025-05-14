@@ -1,78 +1,86 @@
 #include "api_handler.h"
-#include <curl/curl.h>
-#include "nlohmann/json.hpp"
-#include <iostream>
-#include <stdexcept>
-#include <map>
+#include <curl/curl.h>      // For libcurl functionalities
+#include "nlohmann/json.hpp" // For JSON parsing
+#include <iostream>         // For std::cerr, std::cout (can be removed if logging is handled differently)
+#include <stdexcept>        // For std::runtime_error
+#include <map>              // For mapping movie types to API paths
 
+// Use the nlohmann::json namespace
 using json = nlohmann::json;
 
 // --- Constructor and Destructor ---
 
-// Constructor: Initializes the ApiHandler with the API key and libcurl handle
+// Constructor: Initializes the ApiHandler with the TMDB API key and sets up libcurl.
 ApiHandler::ApiHandler(std::string apiKey) : apiKey_(std::move(apiKey)), curl_handle_(nullptr) {
-    // Initialize libcurl globally
+    // Initialize libcurl globally. This should ideally be done once per application.
+    // If multiple ApiHandler instances are created, this could be moved to main()
+    // or a dedicated initialization function.
     CURLcode global_init_res = curl_global_init(CURL_GLOBAL_DEFAULT);
     if (global_init_res != CURLE_OK) {
+        // Throw an exception if global initialization fails, as the handler cannot function.
         throw std::runtime_error("Failed to initialize libcurl globally: " + std::string(curl_easy_strerror(global_init_res)));
     }
+
+    // Get a curl easy handle. This handle will be reused for requests.
     curl_handle_ = curl_easy_init();
     if (!curl_handle_) {
-        curl_global_cleanup();
+        curl_global_cleanup(); // Clean up global state if handle init fails
         throw std::runtime_error("Failed to initialize libcurl easy handle.");
     }
 }
 
-// Destructor: Cleans up the libcurl handle and global state
+// Destructor: Cleans up the libcurl easy handle and global state.
 ApiHandler::~ApiHandler() {
     if (curl_handle_) {
-        curl_easy_cleanup(curl_handle_);
+        curl_easy_cleanup(curl_handle_); // Clean up the easy handle
     }
+    // Global cleanup. Similar to init, this should ideally be done once when the application exits.
     curl_global_cleanup();
 }
 
 // --- Public Methods ---
 
-// Fetches and parses movies of a specific type 
+// Fetches and parses movies of a specific type.
+// This is the primary public interface for getting movie data.
 std::vector<Movie> ApiHandler::fetchMovies(const std::string& movieType) {
     std::string jsonResponse;
-    fetchData(movieType, jsonResponse);
-    return parseJson(jsonResponse);
+    // Step 1: Fetch the raw data from the API.
+    fetchData(movieType, jsonResponse); 
+    
+    // Step 2: Parse the JSON response into Movie objects.
+    return parseJson(jsonResponse); 
 }
 
 // --- Private Helper Methods ---
 
-// Callback function for libcurl to handle incoming data
-// It appends the received data chunks to the string pointed to by userp
-size_t ApiHandler::WriteCallback(void *contents, size_t size, size_t nmemb, void *userp) {
-    // Calculate the total size of the data chunk received 
-    size_t realSize = size * nmemb; 
-    // Cast userp pointer back to a std::string pointer 
+// Callback function for libcurl to handle incoming data.
+// It appends the received data chunks to the string pointed to by userp.
+size_t ApiHandler::WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
+    size_t realSize = size * nmemb;
     std::string* responseBuffer = static_cast<std::string*>(userp);
     if (responseBuffer == nullptr) {
-        return 0;
+        // Should not happen if CURLOPT_WRITEDATA is set correctly.
+        return 0; 
     }
     try {
-        // Append the received data chunk to the string 
-        // contents is not null-terminated, so specify length explicitly 
         responseBuffer->append(static_cast<char*>(contents), realSize);
     } catch (const std::bad_alloc& e) {
-        // Handle potential memory allocation errors during append 
         std::cerr << "Memory allocation error in WriteCallback: " << e.what() << std::endl;
-        return 0;
+        return 0; // Signal an error to libcurl
     }
-    // Return the number of bytes processed to libcurl
-    return realSize; 
+    return realSize; // Inform libcurl how many bytes were processed
 }
 
-// Fetches raw data from the TMDB API
-// Constructs the URL, sets libcurl options, and performs the HTTP GET request
-void ApiHandler::fetchData(const std::string& apiKey, const std::string& movieType, std::string& responseBuffer) {
-    if (!curl_handle_) {
+// Fetches raw data from the TMDB API.
+// Constructs the URL, sets libcurl options, and performs the HTTP GET request.
+void ApiHandler::fetchData(const std::string& movieType, std::string& responseBuffer) {
+    if (!curl_handle_) { // Safety check
         throw std::runtime_error("curl_handle_ is not initialized in fetchData.");
     }
-    responseBuffer.clear();
 
+    responseBuffer.clear(); // Ensure the buffer is empty before a new request
+
+    // Map user-friendly movie types to TMDB API paths
     std::map<std::string, std::string> movieTypeToPath = {
         {"popular", "popular"},
         {"top", "top_rated"},
@@ -143,49 +151,50 @@ void ApiHandler::fetchData(const std::string& apiKey, const std::string& movieTy
         throw std::runtime_error(errorMsg);
     }
 
-
+    // If we reach here, the request was successful and responseBuffer contains the data.
 }
 
-
-// Parses the JSON response string into a vector of Movie objects
+// Parses the JSON response string into a vector of Movie objects.
 std::vector<Movie> ApiHandler::parseJson(const std::string& jsonResponse) {
     std::vector<Movie> movies;
-
     try {
-        json data = json::parse(jsonResponse); 
+        json data = json::parse(jsonResponse);
 
-        // Check if the top-level 'results' key exists and is an array
+        // TMDB API usually returns results in a "results" array.
         if (data.contains("results") && data["results"].is_array()) {
             for (const auto& item : data["results"]) {
                 Movie movie;
-
-                // Safely access fields, providing defaults or handling missing keys 
-                movie.id = item.value("id", -1);
+                // Use .value("key", default_value) for safer access.
+                // This prevents exceptions if a key is missing and provides a fallback.
+                movie.id = item.value("id", -1); // -1 indicates missing or invalid ID
                 movie.title = item.value("title", "N/A");
                 movie.release_date = item.value("release_date", "N/A");
                 movie.vote_average = item.value("vote_average", 0.0);
                 movie.overview = item.value("overview", "No overview available.");
 
-                // Perform basic validation if needed 
+                // Basic validation: skip if essential data like ID or title is missing.
                 if (movie.id == -1 && movie.title == "N/A") {
-                    std::cerr << "Warning. Parsed a movie item with missing ID and title. Skipping..." << std::endl;
-                    continue;
+                    std::cerr << "Warning: Parsed a movie item with missing ID and title. Skipping." << std::endl;
+                    continue; 
                 }
                 movies.push_back(movie);
             }
         } else {
-            // If 'results' is missing or not an array 
+            // Handle cases where the "results" array is not found.
+            // This could be an API error message or an unexpected format.
             if (data.contains("status_message")) {
-                throw std::runtime_error("TMDB API Error: " + data.value("status_message", "Unknown error."));        
+                // TMDB often includes a status_message for errors.
+                throw std::runtime_error("TMDB API Error: " + data.value("status_message", "Unknown error from API."));
             } else {
-                throw std::runtime_error("Failed to parse movies: 'results' array not found.");
+                throw std::runtime_error("Failed to parse movies: 'results' array not found in JSON response.");
             }
         }
     } catch (const json::parse_error& e) {
-        throw e;
+        // Re-throw with more context or handle specifically.
+        throw std::runtime_error("JSON parse error: " + std::string(e.what()) + " at byte " + std::to_string(e.byte));
     } catch (const json::type_error& e) {
+        // Handle errors like accessing a field with the wrong type.
         throw std::runtime_error("JSON type error during parsing: " + std::string(e.what()));
     }
-
-    return movies; // Return the vector of parsed movies
+    return movies;
 }

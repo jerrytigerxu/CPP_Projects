@@ -6,7 +6,7 @@
 #include <set>
 
 // Structure to hold the result of parsing command-line arguments
-struct parsedArgs {
+struct ParsedArgs {
     std::string movieType;
     bool helpRequested;
     bool error;
