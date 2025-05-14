@@ -2,13 +2,17 @@
 CXX = g++
 # Compiler flags:
 # -std=c++17: Use the C++17 standard
-# -Wall -Wextra: Enable most warning messages
+# -Wall -Wextra -pendantic: Enable most warning messages
 # -g: Generate debugging information
 # Initial flags (ensure no trailing spaces here)
-CXXFLAGS = -std=c++17 -Wall -Wextra -g
+CXXFLAGS = -std=c++17 -Wall -Wextra -pedantic -g
 
 # Linker flags:
-LDFLAGS =
+LDFLAGS = -lcurl 
+
+# CPPFLAGS
+# -I.: Include the current directory (for local .h files)
+CPPFLAGS = -I.
 
 # Name of the final executable
 TARGET = tmdb-app
@@ -27,42 +31,38 @@ VCPKG_ROOT ?= $(HOME)/vcpkg
 VCPKG_TRIPLET ?= x64-linux
 VCPKG_INSTALLED_DIR = $(VCPKG_ROOT)/installed/$(VCPKG_TRIPLET)
 
-# Define specific include and lib paths (ensure no trailing spaces)
-VCPKG_INCLUDE_DIR = $(VCPKG_INSTALLED_DIR)/include
-VCPKG_LIB_DIR = $(VCPKG_INSTALLED_DIR)/lib
+# Add vcpkg include and library paths to compiler and linker flags
+CPPFLAGS += -I$(VCPKG_ROOT)/installed/$(VCPKG_TARGET_TRIPLET)/include
+LDFLAGS += -L$(VCPKG_ROOT)/installed/$(VCPKG_TARGET_TRIPLET)/lib
 
-# Add vcpkg include directory to compiler flags
-# Using := for immediate assignment with the explicit variable
-CXXFLAGS := $(CXXFLAGS) -I$(VCPKG_INCLUDE_DIR)
+# --- Build Rules ---
 
-# Add vcpkg library directory to linker flags
-LDFLAGS += -L$(VCPKG_LIB_DIR)
-# Link against the libraries installed via vcpkg
-LDFLAGS += -lcurl # Link against libcurl
-# Link against OpenSSL libraries (needed by libcurl for HTTPS)
-LDFLAGS += -lssl -lcrypto
-# Link against zlib (needed by libcurl for compression like gzip/deflat)
-LDFLAGS += -lz
-# nlohmann-json is header-only, no linking needed for it specifically
-# --- End vcpkg ---
-
-# Default rule: Build the target executable
+# Default rule: 'all' builds the target executable.
+# This is the rule executed if you just run 'make'.
 all: $(TARGET)
 
-# Rule to link the executable
-# IMPORTANT: The next line MUST start with a TAB character, not spaces
+# Rule to link the target executable from object files.
 $(TARGET): $(OBJS)
-	$(CXX) $(CXXFLAGS) $(OBJS) -o $(TARGET) $(LDFLAGS)
+	@echo "Linking $(TARGET)..."
+	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS) $(LDFLAGS)
+	@echo "Build complete: $(TARGET) is ready."
 
-# Rule to compile source files into object files
-# IMPORTANT: The next line MUST start with a TAB character, not spaces
+# Rule to compile .cpp source files into .o object files.
+# '$<' is an automatic variable representing the first prerequisite (the .cpp file).
+# '$@' is an automatic variable representing the target file (the .o file).
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	@echo "Compiling $<..."
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 
-# Rule to clean up generated files
-# IMPORTANT: The next line MUST start with a TAB character, not spaces
+# --- Clean Rule ---
+
+# 'clean' rule: Removes generated object files and the target executable.
 clean:
+	@echo "Cleaning up project..."
 	rm -f $(OBJS) $(TARGET)
+	@echo "Clean complete."
 
-# Phony targets (targets that don't represent files)
+# --- Phony Targets ---
+# .PHONY declares targets that are not actual files.
+# This prevents 'make' from getting confused if a file named 'all' or 'clean' exists.
 .PHONY: all clean
