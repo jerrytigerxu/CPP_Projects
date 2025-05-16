@@ -4,11 +4,21 @@
 #include <fstream> // For file input (reading .env)
 #include <cstdlib> // For exit()
 #include <stdexcept> // For runtime_error
+#include <algorithm>
+#include <locale>
 
 #include "movie.h" // Definition of Movie struct
 #include "cli_parser.h" // For CliParser class
 #include "api_handler.h" // For ApiHandler class
 #include "display_handler.h" // For DisplayHandler class
+
+
+// Helper function to convert string to lowercase
+std::string toLower(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(),
+                    [](unsigned char c){ return std::tolower(c); });
+    return s;
+}
 
 // --- Helper Function to Read API Key ---
 // Reads the TMDB API key from an environment variable "TMDB_API_KEY"
@@ -61,7 +71,7 @@ std::string getApiKey() {
         std::cerr << "Warning: Could not open .env file." << std::endl;
     }
 
-    throw std::runtime_error("TMDB_API_KEY not found. Please set it as an environment variable or in a .env file.");
+    throw std::runtime_error("TMDB_API_KEY not found. Please set it as an environment variable (TMDB_API_KEY=your_key) or in a .env file in the application's root directory (e.g., TMDB_API_KEY=your_key).");
 }
 
 int main(int argc, char* argv[]) {
@@ -71,7 +81,7 @@ int main(int argc, char* argv[]) {
 
     // Handle help request
     if (parsedArgs.helpRequested) {
-        std::cout << cliParser.getUsageString(argc > 0 ? argv[0] : "tmdb-app") << std::endl;
+        std::cout << cliParser.getUsageString(argc > 0 && argv[0] != nullptr ? argv[0] : "tmdb-app") << std::endl;
         return 0;
     }
     // Handle parsing errors
@@ -81,6 +91,9 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "Requested movie type: " << parsedArgs.movieType << std::endl;
+    if (!parsedArgs.sortByField.empty()) {
+        std::cout << "Sorting by: " << parsedArgs.sortByField << " (" << parsedArgs.sortOrder << ")" << std::endl;
+    }
 
     // --- 2. Get API Key ---
     std::string apiKey;
@@ -91,29 +104,57 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // --- 3. Fetch and Display Movie Data ---
+    // --- 3. Fetch Movie Data ---
+    std::vector<Movie> movies;
     try {
         // Initialize ApiHandler with the API key
         ApiHandler apiHandler(apiKey);
 
         std::cout << "\nFetching movie data from TMDB for type: " << parsedArgs.movieType << "..." << std::endl;
-        std::vector<Movie> movies = apiHandler.fetchMovies(parsedArgs.movieType);
+        movies = apiHandler.fetchMovies(parsedArgs.movieType);
         std::cout << "Successfully fetched and parsed " << movies.size() << " movies." << std::endl;
-
-        // Display the movies
-        DisplayHandler displayHandler;
-        std::cout << "\nDisplaying movie data..." << std::endl;
-        displayHandler.displayMoviesTable(movies);
 
     } catch (const std::runtime_error& e) {
         // Catch errors from ApiHandler (network, API errors, JSON parsing issues)
-        std::cerr << "\nError: " << e.what() << std::endl;
+        std::cerr << "\nError during API interaction or data parsing: " << e.what() << std::endl;
         return 1;
     } catch (const std::exception& e) {
         // Catch any other unexpected standard exceptions
         std::cerr << "\nAn unexpected error occurred: " << e.what() << std::endl;
         return 1;
     }
+
+    // --- 4. Sort Movies (Client-Side) if requested ---
+    if (!parsedArgs.sortByField.empty() && !movies.empty()) {
+        std::cout << "Sorting movies by " << parsedArgs.sortByField << " in " << parsedArgs.sortOrder << " order..." << std::endl;
+
+        bool ascending = (parsedArgs.sortOrder == "asc");
+
+        if (parsedArgs.sortByField == "title") {
+            std::sort(movies.begin(), movies.end(), [&](const Movie& a, const Movie& b) {
+                std::string titleA = toLower(a.title);
+                std::string titleB = toLower(b.title);
+                return ascending ? (titleA < titleB) : (titleA > titleB);
+            });
+        } else if (parsedArgs.sortByField == "date") {
+            std::sort(movies.begin(), movies.end(), [&](const Movie& a, const Movie& b) {
+                if (a.release_date == "N/A" || a.release_date.empty()) return !ascending;
+                if (b.release_date == "N/A" || b.release_date.empty()) return ascending;
+                return ascending ? (a.release_date < b.release_date) : (a.release_date > b.release_date);
+            });
+        } else if (parsedArgs.sortByField == "rating") {
+            std::sort(movies.begin(), movies.end(), [&](const Movie& a, const Movie& b) {
+                return ascending ? (a.vote_average < b.vote_average) : (a.vote_average > b.vote_average);
+            });
+        }
+        std::cout << "Sorting complete." << std::endl;
+    }
+
+
+    // --- 5. Display Movie Data ---
+    DisplayHandler displayHandler;
+    std::cout << "\nDisplaying movie data..." << std::endl;
+    displayHandler.displayMoviesTable(movies);
 
     return 0;
 }

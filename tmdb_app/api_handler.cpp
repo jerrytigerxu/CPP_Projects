@@ -144,6 +144,11 @@ void ApiHandler::fetchData(const std::string& movieType, std::string& responseBu
     curl_easy_getinfo(curl_handle_, CURLINFO_RESPONSE_CODE, &http_code);
     if (http_code != 200) {
         std::string errorMsg = "HTTP request failed with status code: " + std::to_string(http_code);
+        if (http_code == 401) { // Unauthorized
+            errorMsg += "\nHint: This often means an invalid or missing API key. Please verify your TMDB_API_KEY.";
+        } else if (http_code == 404) { // Not Found
+             errorMsg += "\nHint: The requested resource was not found on the server.";
+        }
         if (!responseBuffer.empty()) {
             // Include a snippet of the response if available, helpful for API errors.
             errorMsg += "\nResponse snippet: " + responseBuffer.substr(0, 200) + (responseBuffer.length() > 200 ? "..." : "");
@@ -186,7 +191,9 @@ std::vector<Movie> ApiHandler::parseJson(const std::string& jsonResponse) {
                 // TMDB often includes a status_message for errors.
                 throw std::runtime_error("TMDB API Error: " + data.value("status_message", "Unknown error from API."));
             } else {
-                throw std::runtime_error("Failed to parse movies: 'results' array not found in JSON response.");
+                 // Log the beginning of the problematic JSON for debugging
+                std::string responseStart = jsonResponse.substr(0, std::min((size_t)500, jsonResponse.length()));
+                throw std::runtime_error("Failed to parse movies: 'results' array not found or not an array in JSON response. Response starts with: " + responseStart);
             }
         }
     } catch (const json::parse_error& e) {

@@ -8,12 +8,21 @@
 // Structure to hold the result of parsing command-line arguments
 struct ParsedArgs {
     std::string movieType;
+    std::string sortByField; 
+    std::string sortOrder;
     bool helpRequested;
     bool error;
     std::string errorMessage;
 
     // Default constructor
-    ParsedArgs() : helpRequested(false), error(false) {}
+    ParsedArgs() : 
+        movieType(""),
+        sortByField(""),
+        sortOrder("asc"),
+        helpRequested(false),
+        error(false),
+        errorMessage("")
+    {}
 };
 
 // CliParser class is responsible for parsing command-line arguments
@@ -32,9 +41,14 @@ public:
     // \@param programName The name of the executable 
     // \@return A string containing the help/usage message
     std::string getUsageString(const std::string& programName) const; 
-private:
+
+    private:
     // Set of allowed movie types for validation
     std::set<std::string> allowedTypes_;
+    // Set of allowed fields for sorting
+    std::set<std::string> allowedSortFields_;
+    // Set of allowed orders for sorting
+    std::set<std::string> allowedSortOrders_;
 };
 
 #endif // CLI_PARSER_H
