@@ -75,6 +75,7 @@ std::string getApiKey() {
 }
 
 int main(int argc, char* argv[]) {
+    
     // --- 1. Parse Command Line Arguments
     CliParser cliParser;
     ParsedArgs parsedArgs = cliParser.parse(argc, argv);

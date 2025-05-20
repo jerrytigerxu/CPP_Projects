@@ -97,7 +97,7 @@ ParsedArgs CliParser::parse(int argc, char* argv[]) {
         args.error = true;
         std::stringstream ss;
         ss << "Invalid movie type specified: '" << args.movieType << "'.\n";
-        ss << "Allowed type: ";
+        ss << "Allowed types: ";
         bool first = true;
         for (const auto& type : allowedTypes_) {
             if (!first) ss << ", ";

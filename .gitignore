@@ -56,7 +56,7 @@ Thumbs.db
 # Configuration/Environment files (Important: Add your specific config if needed)
 # Example: If you decide to use a config file for the API key instead of env var
 # config.txt
-# .env
+.env
 
 # Log files
 *.log
