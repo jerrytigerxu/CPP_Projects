@@ -86,7 +86,8 @@ Important: Add .env to your .gitignore file to prevent committing your API key t
 .env
 build/
 *.o
-tmdb_app ```
+tmdb_app
+```
 
 ### 5. Build the Application
 Navigate to the root of the tmdb_cli project directory (where the Makefile is located) and run:
