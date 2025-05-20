@@ -156,8 +156,9 @@ Display help:
 
 ## Development
 ### Directory Structure
-```
-tmdb_cli/
+
+
+```tmdb_cli/
 ├── .git/
 ├── .gitignore
 ├── build/              # Compiled files and executable
@@ -173,8 +174,7 @@ tmdb_cli/
 │   └── main.cpp
 ├── .env                # For TMDB_API_KEY (user-created, in project root)
 ├── Makefile            # Build instructions
-└── README.md           # This file
-```
+└── README.md           # This file```
 
 ### Building for Debug
 To build with debugging symbols:
