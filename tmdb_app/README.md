@@ -154,6 +154,8 @@ Display help:
 
 ```./build/tmdb_app --help```
 
+---
+
 ## Development
 ### Directory Structure
 
