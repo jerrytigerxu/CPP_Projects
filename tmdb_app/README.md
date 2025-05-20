@@ -98,12 +98,16 @@ This will compile the source files and create an executable named tmdb_app insid
 
 To specify a different vcpkg triplet during the build (if the default x64-linux is not correct for your system):
 
-```make VCPKG_TRIPLET=your-triplet-here 
-# e.g., make VCPKG_TRIPLET=x64-windows```
+```
+make VCPKG_TRIPLET=your-triplet-here 
+# e.g., make VCPKG_TRIPLET=x64-windows
+```
 
 If VCPKG_ROOT is not set as an environment variable and not automatically detected correctly by the Makefile, you can also specify it:
 
-```make VCPKG_ROOT=/path/to/your/vcpkg VCPKG_TRIPLET=your-triplet```
+```
+make VCPKG_ROOT=/path/to/your/vcpkg VCPKG_TRIPLET=your-triplet
+```
 
 ## Usage
 The executable will be located at build/tmdb_app.
@@ -113,13 +117,17 @@ For the application to find the .env file (if you are using that method for the 
 
 Correct way to run (from project root):
 
-```./build/tmdb_app --type <movie_type> [options] ```
+```
+./build/tmdb_app --type <movie_type> [options]
+```
 
 If you navigate into the build/ directory and run ./tmdb_app, it will look for .env inside the build/ directory, which is likely not where you placed it.
 
 ### Command-Line Interface (CLI):
 
-```./build/tmdb_app --type <movie_type> [options]```
+```
+./build/tmdb_app --type <movie_type> [options]
+```
 
 ### Mandatory Arguments:
 
@@ -142,19 +150,27 @@ Examples (run from project root):
 
 Show popular movies:
 
-```./build/tmdb_app --type popular```
+```
+./build/tmdb_app --type popular
+```
 
 Show top-rated movies, sorted by rating in descending order:
 
-```./build/tmdb_app --type top --sort-by rating --order desc```
+```
+./build/tmdb_app --type top --sort-by rating --order desc
+```
 
 Show upcoming movies, sorted by release date (ascending by default):
 
-```./build/tmdb_app --type upcoming --sort-by date```
+```
+./build/tmdb_app --type upcoming --sort-by date
+```
 
 Display help:
 
-```./build/tmdb_app --help```
+```
+./build/tmdb_app --help
+```
 
 ---
 
@@ -162,7 +178,8 @@ Display help:
 ### Directory Structure
 
 
-```tmdb_cli/
+```
+tmdb_cli/
 ├── .git/
 ├── .gitignore
 ├── build/              # Compiled files and executable
@@ -178,7 +195,8 @@ Display help:
 │   └── main.cpp
 ├── .env                # For TMDB_API_KEY (user-created, in project root)
 ├── Makefile            # Build instructions
-└── README.md           # This file```
+└── README.md           # This file
+```
 
 ### Building for Debug
 To build with debugging symbols:
