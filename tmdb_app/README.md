@@ -81,7 +81,8 @@ The content should be:
 
 Important: Add .env to your .gitignore file to prevent committing your API key to version control. Your .gitignore should include:
 
-```# .gitignore
+```
+# .gitignore
 .env
 build/
 *.o
